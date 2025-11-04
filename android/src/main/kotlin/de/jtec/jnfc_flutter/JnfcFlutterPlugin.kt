@@ -7,39 +7,19 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
-import io.flutter.plugin.common.EventChannel
-import io.flutter.embedding.engine.plugins.activity.ActivityAware
-import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
-
 
 /** JnfcFlutterPlugin */
 class JnfcFlutterPlugin :
     FlutterPlugin,
-    MethodChannel.MethodCallHandler, EventChannel.StreamHandler, ActivityAware {
+    MethodCallHandler {
 
     private lateinit var channel: MethodChannel
-    private lateinit var eventChannel: EventChannel
-    private var eventSink: EventChannel.EventSink? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         channel = MethodChannel(flutterPluginBinding.binaryMessenger, "jnfc_flutter")
         channel.setMethodCallHandler(this)
-        eventChannel = EventChannel(flutterPluginBinding.binaryMessenger, "jnfc_flutter/events")
-        eventChannel.setStreamHandler(this)
     }
-
-
-    override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        channel.setMethodCallHandler(null)
-        eventChannel.setStreamHandler(null)
-    }
-
-    // ActivityAware (needed later for real NFC; kept minimal here)
-    override fun onAttachedToActivity(binding: ActivityPluginBinding) {}
-    override fun onDetachedFromActivityForConfigChanges() {}
-    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {}
-    override fun onDetachedFromActivity() {}
 
     override fun onMethodCall(call: MethodCall, result: Result) {
         when (call.method) {
@@ -82,12 +62,7 @@ class JnfcFlutterPlugin :
         }
     }
 
-
-    override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
-        eventSink = events
-    }
-
-    override fun onCancel(arguments: Any?) {
-        eventSink = null
+    override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        channel.setMethodCallHandler(null)
     }
 }
