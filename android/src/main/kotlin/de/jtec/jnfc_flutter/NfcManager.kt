@@ -30,6 +30,10 @@ class NfcManager(
     private var pendingWriteText: String? = null
     private var readingActive: Boolean = false
     private var writingActive: Boolean = false
+    private var writeGen = 0					// increments every startWriting
+    private var activeWriteGen = 0				// generation this manager is waiting on
+
+
 
     fun bind(activity: Activity, callbacks: Callbacks) {
         this.activity = activity
@@ -70,17 +74,30 @@ class NfcManager(
             callbacks?.onWriteResult(false, "NFC adapter not available")
             return
         }
+
+        // override previous write (bump generation, reset state)
+        writeGen += 1
+        activeWriteGen = writeGen
         expectedUid = uidRequirement?.uppercase(Locale.ROOT)
         pendingWriteText = text
         writingActive = true
         readingActive = false
+
+        // Restart reader mode so we don't keep the old session around
+        disableReaderMode()
         enableReaderMode(act)
     }
 
     override fun onTagDiscovered(tag: Tag?) {
         if (tag == null) return
 
+        val currentGen = activeWriteGen		// snapshot
         val uidHex = tagIdHex(tag.id)
+
+        // ignore tags from stale write sessions
+        if (writingActive && currentGen != writeGen) {
+            return
+        }
 
         // If we require a specific UID for writing, enforce it
         if (writingActive) {
@@ -108,6 +125,14 @@ class NfcManager(
             }
             handleWrite(tag, uidHex, text)
         }
+    }
+
+    /* OPTIONAL explicit cancel, used by cancelWriting() method */
+    fun cancelWriting() {
+        writingActive = false
+        pendingWriteText = null
+        expectedUid = null
+        // Keep reader mode as-is; or disable if you want
     }
 
     // --- Internals ---

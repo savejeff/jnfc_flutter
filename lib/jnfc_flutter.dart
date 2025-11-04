@@ -28,16 +28,12 @@ class NfcCard {
     );
   }
 }
-
 class NfcWriteResult {
   final bool success;
   final String? error;
-
   NfcWriteResult({required this.success, this.error});
 }
 
-/// Public API surface that talks to native via a single MethodChannel.
-/// Native side pushes async callbacks using channel.invokeMethod("onCardRead"/"onWriteResult", ...).
 class NfcIo {
   NfcIo._() {
     _methods.setMethodCallHandler(_handleNativeCallback);
@@ -46,52 +42,42 @@ class NfcIo {
 
   static const MethodChannel _methods = MethodChannel('jnfc_flutter');
 
-  final StreamController<NfcCard> _cardController = StreamController<NfcCard>.broadcast();
+  final StreamController<NfcCard> _cardController = StreamController.broadcast();
+  Completer<NfcWriteResult>? _pendingWrite;
 
-  Completer<NfcWriteResult>? _pendingWrite; // NOTE: one write at a time in this simple mock.
-
-  /// Start a reading process.
-  Future<void> startReading() async {
-    await _methods.invokeMethod('startReading');
-  }
-
-  /// Stop a reading process.
-  Future<void> stopReading() async {
-    await _methods.invokeMethod('stopReading');
-  }
-
-  /// Stream of discovered cards (one event per card).
   Stream<NfcCard> get onCardDiscovered => _cardController.stream;
 
-  /// Start a writing process: when a card with [uid] is presented,
-  /// write [content] (String). Completes when native reports success or error.
+  Future<void> startReading() => _methods.invokeMethod('startReading');
+  Future<void> stopReading() => _methods.invokeMethod('stopReading');
+
+  /// OPTIONAL: explicit cancel entrypoint (no error if nothing pending)
+  Future<void> cancelWriting() async {
+    _pendingWrite?.complete(NfcWriteResult(success: false, error: 'canceled'));
+    _pendingWrite = null;
+    try {
+      await _methods.invokeMethod('cancelWriting');
+    } catch (_) {}
+  }
+
   Future<NfcWriteResult> startWriting({
     required String uid,
     required String content,
   }) async {
-    // Enforce single in-flight write for now (matches the mock implementation).
+    // override the previous pending Future
     if (_pendingWrite != null && !_pendingWrite!.isCompleted) {
-      return Future.value(NfcWriteResult(success: false, error: 'write_in_progress'));
+      _pendingWrite!.complete(NfcWriteResult(success: false, error: 'canceled'));
     }
-
     final completer = Completer<NfcWriteResult>();
     _pendingWrite = completer;
 
-    try {
-      await _methods.invokeMethod('startWriting', {
-        'uid': uid,
-        'content': content,
-      });
-    } on PlatformException catch (e) {
-      if (!completer.isCompleted) {
-        completer.complete(NfcWriteResult(success: false, error: e.message ?? 'platform_error'));
-      }
-    }
+    await _methods.invokeMethod('startWriting', {
+      'uid': uid,
+      'content': content,
+    });
 
     return completer.future;
   }
 
-  /// Handle native -> Dart callbacks sent via the same MethodChannel.
   Future<void> _handleNativeCallback(MethodCall call) async {
     switch (call.method) {
       case 'onCardRead': {
@@ -101,18 +87,15 @@ class NfcIo {
         break;
       }
       case 'onWriteResult': {
-        final args = call.arguments as Map<dynamic, dynamic>?;
-        final success = (args?['success'] as bool?) ?? false;
-        final error = args?['error'] as String?;
-        final res = NfcWriteResult(success: success, error: error);
-        final c = _pendingWrite;
+        final args = (call.arguments as Map).cast<String, dynamic>();
+        final res = NfcWriteResult(
+          success: (args['success'] as bool?) ?? false,
+          error: args['error'] as String?,
+        );
+        _pendingWrite?.complete(res);
         _pendingWrite = null;
-        c?.complete(res);
         break;
       }
-      default:
-      // Unknown callback; ignore or log as needed.
-        break;
     }
   }
 

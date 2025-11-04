@@ -15,6 +15,8 @@ final class NfcManager: NSObject, NFCTagReaderSessionDelegate {
 	private var session: NFCTagReaderSession?
 	private var expectedUid: String?
 	private var pendingWriteText: String?
+	private var writeGen: Int = 0
+	private var activeWriteGen: Int = 0
 
 	// MARK: - Public API
 	func startReading() {
@@ -37,12 +39,30 @@ final class NfcManager: NSObject, NFCTagReaderSessionDelegate {
 			onWriteResult?(false, "NFC not available on this device")
 			return
 		}
+
+		// Cancel/override previous session
+		self.session?.invalidate()
+		self.session = nil
+
+		writeGen &+= 1			// wraps on overflow (fine)
+		activeWriteGen = writeGen
 		expectedUid = uidRequirement?.uppercased()
 		pendingWriteText = text
+
+
 		let s = NFCTagReaderSession(pollingOption: [.iso14443], delegate: self, queue: nil)
 		s?.alertMessage = "Hold your tag near the phone to write data."
 		self.session = s
 		s?.begin()
+	}
+
+	/// OPTIONAL explicit cancel
+	func cancelWriting() {
+		pendingWriteText = nil
+		expectedUid = nil
+		// You may also invalidate to close the system sheet immediately
+		session?.invalidate()
+		session = nil
 	}
 
 	func stop() {
@@ -66,12 +86,19 @@ final class NfcManager: NSObject, NFCTagReaderSessionDelegate {
 
 	func tagReaderSession(_ session: NFCTagReaderSession, didDetect tags: [NFCTag]) {
 		guard let tag = tags.first else { return }
+		let currentGen = activeWriteGen
 
 		// connect
 		session.connect(to: tag) { [weak self] err in
 			guard let self = self else { return }
 			if let err = err {
 				session.invalidate(errorMessage: "Connect failed: \(err.localizedDescription)")
+				return
+			}
+
+			// Ignore stale callbacks if a newer write has started
+			if self.pendingWriteText != nil && currentGen != self.writeGen {
+				// Newer write session superseded this one
 				return
 			}
 

@@ -82,6 +82,11 @@ class JnfcFlutterPlugin :
                 result.success(null)
             }
 
+            "cancelWriting" -> {			// OPTIONAL
+                nfc.cancelWriting()
+                result.success(null)
+            }
+
             else -> result.notImplemented()
         }
     }
