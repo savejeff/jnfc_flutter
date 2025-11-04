@@ -9,6 +9,7 @@ import CoreNFC
 final class NfcManager: NSObject, NFCTagReaderSessionDelegate {
 	// MARK: - Public callbacks
 	var onCardRead: ((String, String) -> Void)?					// (uidHex, contentString)
+	var onCancel: (() -> Void)?
 	var onWriteResult: ((Bool, String?) -> Void)?				// (success, error)
 
 	// MARK: - Internal state
@@ -78,10 +79,26 @@ final class NfcManager: NSObject, NFCTagReaderSessionDelegate {
 	}
 
 	func tagReaderSession(_ session: NFCTagReaderSession, didInvalidateWithError error: Error) {
+
+		let was_write_session = self.pendingWriteText != nil
+
 		// Reset state on invalidation
 		self.session = nil
 		self.expectedUid = nil
 		self.pendingWriteText = nil
+
+		// detect user cancel specifically
+		let nserr = error as NSError
+		if nserr.code == NFCReaderError.readerSessionInvalidationErrorUserCanceled.rawValue {
+			DispatchQueue.main.async { [weak self] in
+				// If we have a pending write, do write flow
+				if was_write_session {
+					self?.onWriteResult?(false, "User Canceled")
+				} else {
+					self?.onCancel?()   // new callback closure
+				}
+			}
+		}
 	}
 
 	func tagReaderSession(_ session: NFCTagReaderSession, didDetect tags: [NFCTag]) {
@@ -315,6 +332,11 @@ public class JnfcFlutterPlugin: NSObject, FlutterPlugin {
 				"content": content
 			])
 		}
+
+		nfc.onCancel = { [weak self] in
+			self?.channel.invokeMethod("onReadCanceled", arguments: nil)
+		}
+
 		nfc.onWriteResult = { [weak self] success, error in
 			self?.channel.invokeMethod("onWriteResult", arguments: [
 				"success": success,

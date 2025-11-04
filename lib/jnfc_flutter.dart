@@ -42,10 +42,10 @@ class NfcIo {
 
   static const MethodChannel _methods = MethodChannel('jnfc_flutter');
 
-  final StreamController<NfcCard> _cardController = StreamController.broadcast();
+  final StreamController<NfcCard?> _cardController = StreamController.broadcast();
   Completer<NfcWriteResult>? _pendingWrite;
 
-  Stream<NfcCard> get onCardDiscovered => _cardController.stream;
+  Stream<NfcCard?> get onCardDiscovered => _cardController.stream;
 
   Future<void> startReading() => _methods.invokeMethod('startReading');
   Future<void> stopReading() => _methods.invokeMethod('stopReading');
@@ -86,6 +86,9 @@ class NfcIo {
         _cardController.add(card);
         break;
       }
+      case 'onReadCanceled':
+        _cardController.add(null);
+        break;
       case 'onWriteResult': {
         final args = (call.arguments as Map).cast<String, dynamic>();
         final res = NfcWriteResult(

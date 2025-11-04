@@ -33,7 +33,7 @@ class _HomeState extends State<Home> {
   String _log = 'Ready';
   NfcCard? last_card = null;
 
-  StreamSubscription<NfcCard>? _sub;
+  StreamSubscription<NfcCard?>? _sub;
   final TextEditingController _writeController = TextEditingController(text: '');
 
   @override
@@ -46,11 +46,17 @@ class _HomeState extends State<Home> {
   void _startReading() async {
     _sub?.cancel();
     _sub = NfcIo.instance.onCardDiscovered.listen((card) {
-      last_card = card;
-      _writeController.text = card.content;
-      setState(() {
-        _log = 'READ → uid=${card.uid}, content="${card.content}"';
-      });
+      if(card == null) {
+        setState(() {
+        _log = 'READ Canceled';
+        });
+      } else {
+        last_card = card;
+        _writeController.text = card.content;
+        setState(() {
+          _log = 'READ → uid=${card.uid}, content="${card.content}"';
+        });
+      }
     });
     await NfcIo.instance.startReading();
     setState(() {
