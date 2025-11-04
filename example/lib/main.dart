@@ -3,66 +3,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:jnfc_flutter/jnfc_flutter.dart';
-/*
-void main() {
-  runApp(const MyApp());
-}
 
-class MyApp extends StatefulWidget {
-  const MyApp({super.key});
-
-  @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
-  String _platformVersion = 'Unknown';
-  final _jnfcFlutterPlugin = JnfcFlutter();
-
-  @override
-  void initState() {
-    super.initState();
-    initPlatformState();
-  }
-
-  // Platform messages are asynchronous, so we initialize in an async method.
-  Future<void> initPlatformState() async {
-    String platformVersion;
-    // Platform messages may fail, so we use a try/catch PlatformException.
-    // We also handle the message potentially returning null.
-    try {
-      platformVersion =
-          await _jnfcFlutterPlugin.getPlatformVersion() ?? 'Unknown platform version';
-    } on PlatformException {
-      platformVersion = 'Failed to get platform version.';
-    }
-
-    // If the widget was removed from the tree while the asynchronous platform
-    // message was in flight, we want to discard the reply rather than calling
-    // setState to update our non-existent appearance.
-    if (!mounted) return;
-
-    setState(() {
-      _platformVersion = platformVersion;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(
-          title: const Text('Plugin example app'),
-        ),
-        body: Center(
-          child: Text('Running on: $_platformVersion\n'),
-        ),
-      ),
-    );
-  }
-}
-
-*/
 
 void main() {
   runApp(const MyApp());
@@ -88,6 +29,7 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> {
   String _log = 'Ready';
+  NfcCard? last_card = null;
 
   StreamSubscription<NfcCard>? _sub;
 
@@ -100,6 +42,7 @@ class _HomeState extends State<Home> {
   void _startReading() async {
     _sub?.cancel();
     _sub = NfcIo.instance.onCardDiscovered.listen((card) {
+      last_card = card;
       setState(() {
         _log = 'READ → uid=${card.uid}, content="${card.content}"';
       });
@@ -120,8 +63,8 @@ class _HomeState extends State<Home> {
 
   void _startWriting() async {
     final res = await NfcIo.instance.startWriting(
-      uid: 'AA:BB:CC:DD',
-      content: 'Hi there!',
+      uid: last_card?.uid ?? '',
+      content: 'Hi there!2',
     );
     setState(() {
       _log = res.success ? 'WRITE → success' : 'WRITE → error: ${res.error}';
