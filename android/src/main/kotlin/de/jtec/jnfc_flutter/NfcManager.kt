@@ -104,7 +104,7 @@ class NfcManager(
             expectedUid?.let { req ->
                 if (uidHex.uppercase(Locale.ROOT) != req) {
                     // Wrong card → keep session alive; user can present another tag
-                    //postAlert("Wrong tag. Expected $req, got $uidHex.")
+                    postWrite(false, "Wrong tag. Expected $req, got $uidHex.")
                     return
                 }
             }
