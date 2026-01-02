@@ -88,6 +88,8 @@ class _HomeState extends State<Home> {
       _log = 'WRITE → canceled';
     });
   }
+
+
   @override
   Widget build(BuildContext context) {
     final uidText = last_card?.uid ?? '<none>';
